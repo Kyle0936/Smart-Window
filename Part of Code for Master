@@ -1,0 +1,138 @@
+#include "U8glib.h"
+#include <stdio.h>
+#include <dht11.h>
+#include <AltSoftSerial.h>
+AltSoftSerial altSerial; 
+dht11 DHT11;
+
+#define DHT11PIN 4
+#define LocalAddr 0x12
+#define OLED_RES 10
+#define OLED_VCC 13
+
+unsigned char RxBuffer[50] = {0};
+double KT=0;
+double HU=0;
+int pm1_0, pm2_5, pm10_0;        //PM1.0、PM2.5、PM10
+
+/*
+ * Function:  read the temperature
+ * --------------------
+ *
+ * Get the temperature according to the library
+ * provided by the company sold the detector module
+ */
+void temper()
+{       
+       int chk = DHT11.read(DHT11PIN);
+       KT=DHT11.temperature;
+       HU=DHT11.humidity;
+}
+
+void setup()
+{
+  Serial.begin(9600);
+  altSerial.begin(9600);        //软串口连接传感器
+  pinMode(OLED_RES, OUTPUT);
+  pinMode(OLED_VCC, OUTPUT);
+  pinMode(buttonPin, INPUT);
+
+  digitalWrite(OLED_VCC, HIGH);
+  digitalWrite(OLED_RES, LOW);
+  delay(200);
+  digitalWrite(OLED_RES, HIGH);
+  
+  //dht11
+  pinMode(3,OUTPUT);
+  pinMode(5,OUTPUT);
+  digitalWrite(3,HIGH);
+  digitalWrite(5,LOW);
+
+}
+void loop()
+{    
+    
+    temper();
+    draw(KT,HU,MyUnpacking.Data[0],MyUnpacking.Data[1],MyUnpacking.Data[2],MyUnpacking.Data[3]);
+    buttonState = digitalRead(buttonPin);
+    delay(1000);
+   
+  pack();
+  for (int i = 0; MyPacking.sendingBuffer[i - 1] != 0XFE; i++) {
+      Serial.write( MyPacking.sendingBuffer[i]);
+    }
+    
+
+  
+}
+/*
+ * Function:  display data on the screen
+ * --------------------
+ *
+ * Provided by the company who sold the digital screen
+ */
+
+void draw(int Temp , int Humidity, int x, int y, int a, int b)
+{
+  
+  u8g.firstPage();
+  do
+  {
+    u8g.setFont(u8g_font_unifont);
+    
+    u8g.setPrintPos(16, 16);
+    u8g.print("IN");  
+    u8g.setPrintPos(80,16);
+    u8g.print("OUT");
+
+     
+    u8g.setPrintPos(0, 32);
+    u8g.print("Temp:"); 
+    u8g.print(Temp);
+    u8g.setPrintPos(80,32);
+    u8g.print(a);
+    u8g.setPrintPos(120,32);
+    u8g.print(" C");
+    
+
+         
+    u8g.setPrintPos(0, 48);
+    u8g.print("Humi:"); 
+    u8g.print(Humidity);
+    u8g.setPrintPos(80,48);
+    u8g.print(b);
+    u8g.setPrintPos(120,48);
+    u8g.print(" %"); 
+    
+    u8g.setPrintPos(0, 64);
+    u8g.print("P1:"); 
+    u8g.print(x);
+    u8g.print(" ");
+    u8g.print("P25:");
+    u8g.print(y);
+  } while ( u8g.nextPage() );
+}
+
+/*
+ * Function:  transfer information
+ * --------------------
+ *
+ *  send information to Slave part
+ */
+
+void serialEvent()
+{
+  int i = 0;
+  while (Serial.available() > 0)
+  {
+    RxBuffer[i++] = Serial.read();
+    delay(5);
+  }
+
+  if (unpack(RxBuffer) == 0)   //Unpack function, put your received data as the parametter.
+  {
+   // Serial.print("The unpacked value:\n");
+   //  for (i = 0; i < MyUnpacking.counter; i++)
+   // { Serial.print(MyUnpacking.Data[i], HEX);  }
+  }
+}
